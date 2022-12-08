@@ -145,6 +145,21 @@ func (app *BaseApp) SetEndBlocker(endBlocker sdk.EndBlocker) {
 	app.endBlocker = endBlocker
 }
 
+func (app *BaseApp) SetBeginTxer(beginTxer sdk.BeginTxer) {
+	if app.sealed {
+		panic("SetBeginTxer() on sealed BaseApp")
+	}
+
+	app.beginTxer = beginTxer
+}
+
+func (app *BaseApp) SetEndTxer(endTxer sdk.EndTxer) {
+	if app.sealed {
+		panic("SetEndTxer() on sealed BaseApp")
+	}
+
+	app.endTxer = endTxer
+}
 func (app *BaseApp) SetAnteHandler(ah sdk.AnteHandler) {
 	if app.sealed {
 		panic("SetAnteHandler() on sealed BaseApp")

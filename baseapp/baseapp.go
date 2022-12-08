@@ -62,6 +62,8 @@ type BaseApp struct { // nolint: maligned
 	initChainer    sdk.InitChainer  // initialize state with validators and state blob
 	beginBlocker   sdk.BeginBlocker // logic to run before any txs
 	endBlocker     sdk.EndBlocker   // logic to run after all txs, and to determine valset changes
+	beginTxer      sdk.BeginTxer    // logic to run before a tx
+	endTxer        sdk.EndTxer      // logic to run after a tx
 	addrPeerFilter sdk.PeerFilter   // filter peers by address and port
 	idPeerFilter   sdk.PeerFilter   // filter peers by node ID
 	fauxMerkleMode bool             // if true, IAVL MountStores uses MountStoresDB for simulation speed.
@@ -591,9 +593,15 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 	// meter so we initialize upfront.
 	var gasWanted uint64
 
-	ctx := app.getContextForTx(mode, txBytes)
-	ms := ctx.MultiStore()
+	orig_ctx := app.getContextForTx(mode, txBytes)
+	var ctx sdk.Context
+	if app.beginTxer != nil && mode == runTxModeDeliver {
+		ctx = app.beginTxer(orig_ctx)
+	} else {
+		ctx = orig_ctx
+	}
 
+	ms := ctx.MultiStore()
 	// only run the tx if there is block gas remaining
 	if mode == runTxModeDeliver && ctx.BlockGasMeter().IsOutOfGas() {
 		return gInfo, nil, nil, 0, sdkerrors.Wrap(sdkerrors.ErrOutOfGas, "no block gas left to run tx")
@@ -609,6 +617,8 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 	}()
 
 	blockGasConsumed := false
+	endTxRan := false
+	txStatus := false
 	// consumeBlockGas makes sure block gas is consumed at most once. It must happen after
 	// tx processing, and must be execute even if tx processing fails. Hence we use trick with `defer`
 	consumeBlockGas := func() {
@@ -619,6 +629,14 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 			)
 		}
 	}
+	runEndTx := func() {
+		if !endTxRan {
+			endTxRan = true
+			if app.endTxer != nil {
+				app.endTxer(ctx, txStatus)
+			}
+		}
+	}
 
 	// If BlockGasMeter() panics it will be caught by the above recover and will
 	// return an error - in any case BlockGasMeter will consume gas past the limit.
@@ -627,6 +645,7 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 	// to recover from this one.
 	if mode == runTxModeDeliver {
 		defer consumeBlockGas()
+		defer runEndTx()
 	}
 
 	tx, err := app.txDecoder(txBytes)
@@ -701,11 +720,11 @@ func (app *BaseApp) runTx(mode runTxMode, txBytes []byte) (gInfo sdk.GasInfo, re
 
 			result.Events = append(result.Events, newCtx.EventManager().ABCIEvents()...)
 		}
-
 		if mode == runTxModeDeliver {
 			// When block gas exceeds, it'll panic and won't commit the cached store.
 			consumeBlockGas()
-
+			txStatus = true
+			runEndTx()
 			msCache.Write()
 		}
 
