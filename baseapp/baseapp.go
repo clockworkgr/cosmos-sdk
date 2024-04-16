@@ -80,6 +80,8 @@ type BaseApp struct {
 	initChainer        sdk.InitChainer                // ABCI InitChain handler
 	preBlocker         sdk.PreBlocker                 // logic to run before BeginBlocker
 	beginBlocker       sdk.BeginBlocker               // (legacy ABCI) BeginBlock handler
+	beginTxHook        sdk.BeginTxHook                // BeginTx handler
+	endTxHook          sdk.EndTxHook                  //EndTx handler
 	endBlocker         sdk.EndBlocker                 // (legacy ABCI) EndBlock handler
 	processProposal    sdk.ProcessProposalHandler     // ABCI ProcessProposal handler
 	prepareProposal    sdk.PrepareProposalHandler     // ABCI PrepareProposal
@@ -822,7 +824,13 @@ func (app *BaseApp) runTx(mode execMode, txBytes []byte) (gInfo sdk.GasInfo, res
 	// meter, so we initialize upfront.
 	var gasWanted uint64
 
-	ctx := app.getContextForTx(mode, txBytes)
+	originalCtx := app.getContextForTx(mode, txBytes)
+	var ctx sdk.Context
+	if app.beginTxHook != nil && mode == execModeFinalize {
+		ctx = app.beginTxHook(originalCtx)
+	} else {
+		ctx = originalCtx
+	}
 	ms := ctx.MultiStore()
 
 	// only run the tx if there is block gas remaining
@@ -841,7 +849,8 @@ func (app *BaseApp) runTx(mode execMode, txBytes []byte) (gInfo sdk.GasInfo, res
 	}()
 
 	blockGasConsumed := false
-
+	endTxRan := false
+	txStatus := false
 	// consumeBlockGas makes sure block gas is consumed at most once. It must
 	// happen after tx processing, and must be executed even if tx processing
 	// fails. Hence, it's execution is deferred.
@@ -853,7 +862,14 @@ func (app *BaseApp) runTx(mode execMode, txBytes []byte) (gInfo sdk.GasInfo, res
 			)
 		}
 	}
-
+	runEndTx := func() {
+		if !endTxRan {
+			endTxRan = true
+			if app.endTxHook != nil {
+				app.endTxHook(ctx, txStatus)
+			}
+		}
+	}
 	// If BlockGasMeter() panics it will be caught by the above recover and will
 	// return an error - in any case BlockGasMeter will consume gas past the limit.
 	//
@@ -862,6 +878,7 @@ func (app *BaseApp) runTx(mode execMode, txBytes []byte) (gInfo sdk.GasInfo, res
 	// be executed first (deferred statements are executed as stack).
 	if mode == execModeFinalize {
 		defer consumeBlockGas()
+		defer runEndTx()
 	}
 
 	tx, err := app.txDecoder(txBytes)
@@ -972,7 +989,8 @@ func (app *BaseApp) runTx(mode execMode, txBytes []byte) (gInfo sdk.GasInfo, res
 		if mode == execModeFinalize {
 			// When block gas exceeds, it'll panic and won't commit the cached store.
 			consumeBlockGas()
-
+			txStatus = true
+			runEndTx()
 			msCache.Write()
 		}
 

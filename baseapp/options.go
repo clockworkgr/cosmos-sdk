@@ -204,6 +204,22 @@ func (app *BaseApp) SetEndBlocker(endBlocker sdk.EndBlocker) {
 	app.endBlocker = endBlocker
 }
 
+func (app *BaseApp) SetBeginTxer(beginTxer sdk.BeginTxHook) {
+	if app.sealed {
+		panic("SetBeginTxer() on sealed BaseApp")
+	}
+
+	app.beginTxHook = beginTxer
+}
+
+func (app *BaseApp) SetEndTxer(endTxer sdk.EndTxHook) {
+	if app.sealed {
+		panic("SetEndTxer() on sealed BaseApp")
+	}
+
+	app.endTxHook = endTxer
+}
+
 func (app *BaseApp) SetPrepareCheckStater(prepareCheckStater sdk.PrepareCheckStater) {
 	if app.sealed {
 		panic("SetPrepareCheckStater() on sealed BaseApp")
