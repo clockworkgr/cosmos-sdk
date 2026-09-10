@@ -44,6 +44,8 @@ Ref: https://keepachangelog.com/en/1.0.0/
 
 ### Bug Fixes
 
+* (x/gov) [#114](https://github.com/atomone-hub/cosmos-sdk/pull/114) Quorum getters no longer panic on state that predates the dynamic quorum. A nil quorum range falls back to the static quorum stored with the params and a missing participation EMA resolves to the range minimum, so historical `TallyResult` and `Params` queries at heights before the dynamic quorum upgrade return the quorum the chain applied instead of a nil pointer dereference. Live state, which has both, is unaffected.
+
 ## [v0.500.2](https://github.com/atomone-hub/cosmos-sdk/releases/tag/v0.500.2) - 2026-07-27
 
 ### Improvements

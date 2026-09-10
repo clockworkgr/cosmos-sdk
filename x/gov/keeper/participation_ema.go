@@ -57,15 +57,7 @@ func (keeper Keeper) GetQuorum(ctx context.Context) math.LegacyDec {
 	if err != nil {
 		panic(fmt.Errorf("failed to get params: %w", err))
 	}
-
-	participation, err := keeper.ParticipationEMA.Get(ctx)
-	if err != nil && !errors.Is(err, collections.ErrNotFound) {
-		panic(err)
-	}
-
-	minQuorum := math.LegacyMustNewDecFromStr(params.QuorumRange.Min)
-	maxQuorum := math.LegacyMustNewDecFromStr(params.QuorumRange.Max)
-	return computeQuorum(participation, minQuorum, maxQuorum)
+	return keeper.dynamicQuorum(ctx, keeper.ParticipationEMA, params.QuorumRange, params.Quorum)
 }
 
 // GetConstitutionAmendmentQuorum returns the dynamic quorum for constitution
@@ -75,15 +67,7 @@ func (keeper Keeper) GetConstitutionAmendmentQuorum(ctx context.Context) math.Le
 	if err != nil {
 		panic(fmt.Errorf("failed to get params: %w", err))
 	}
-
-	participation, err := keeper.ConstitutionAmendmentParticipationEMA.Get(ctx)
-	if err != nil && !errors.Is(err, collections.ErrNotFound) {
-		panic(err)
-	}
-
-	minQuorum := math.LegacyMustNewDecFromStr(params.ConstitutionAmendmentQuorumRange.Min)
-	maxQuorum := math.LegacyMustNewDecFromStr(params.ConstitutionAmendmentQuorumRange.Max)
-	return computeQuorum(participation, minQuorum, maxQuorum)
+	return keeper.dynamicQuorum(ctx, keeper.ConstitutionAmendmentParticipationEMA, params.ConstitutionAmendmentQuorumRange, params.ConstitutionAmendmentQuorum)
 }
 
 // GetLawQuorum returns the dynamic quorum for law governance proposals
@@ -93,14 +77,36 @@ func (keeper Keeper) GetLawQuorum(ctx context.Context) math.LegacyDec {
 	if err != nil {
 		panic(fmt.Errorf("failed to get params: %w", err))
 	}
+	return keeper.dynamicQuorum(ctx, keeper.LawParticipationEMA, params.LawQuorumRange, params.LawQuorum)
+}
 
-	participation, err := keeper.LawParticipationEMA.Get(ctx)
+// dynamicQuorum resolves a quorum from its range and participation EMA.
+//
+// State written before the dynamic quorum existed carries neither, and it is
+// still read by historical queries (a TallyResult or Params query at a height
+// before the upgrade that introduced them). Rather than dereferencing a nil
+// range or multiplying by a nil EMA, such state resolves to the quorum the chain
+// applied then: a nil range falls back to the static quorum stored next to it,
+// and a missing EMA yields the range's minimum. On state that has both, the
+// result is unchanged.
+func (keeper Keeper) dynamicQuorum(ctx context.Context, ema collections.Item[math.LegacyDec], quorumRange *v1.QuorumRange, staticQuorum string) math.LegacyDec {
+	if quorumRange == nil {
+		if staticQuorum == "" {
+			panic(fmt.Errorf("gov params define neither a quorum range nor a static quorum"))
+		}
+		return math.LegacyMustNewDecFromStr(staticQuorum)
+	}
+
+	participation, err := ema.Get(ctx)
 	if err != nil && !errors.Is(err, collections.ErrNotFound) {
 		panic(err)
 	}
 
-	minQuorum := math.LegacyMustNewDecFromStr(params.LawQuorumRange.Min)
-	maxQuorum := math.LegacyMustNewDecFromStr(params.LawQuorumRange.Max)
+	minQuorum := math.LegacyMustNewDecFromStr(quorumRange.Min)
+	maxQuorum := math.LegacyMustNewDecFromStr(quorumRange.Max)
+	if participation.IsNil() {
+		return minQuorum
+	}
 	return computeQuorum(participation, minQuorum, maxQuorum)
 }
 
