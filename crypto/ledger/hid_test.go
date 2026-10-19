@@ -95,9 +95,12 @@ func TestHIDDeviceReadsMultiReportResponses(t *testing.T) {
 	for i := range data {
 		data[i] = byte(i * 7)
 	}
-	// An empty report before the response is skipped.
-	f.queued = append(f.queued, make([]byte, hidReportSize))
+	// All-zero and empty reports, before or within the response, are skipped.
 	f.respond(data, 0x9000)
+	r := f.queued
+	require.Len(t, r, 4)
+	zero := make([]byte, hidReportSize)
+	f.queued = [][]byte{zero, r[0], {}, r[1], r[2], zero, r[3]}
 
 	got, err := d.Exchange(getVersion)
 	require.NoError(t, err)
@@ -129,5 +132,12 @@ func TestHIDDeviceRejectsOutOfSequenceReports(t *testing.T) {
 	f.queued = reports
 
 	_, err := d.Exchange(getVersion)
-	require.ErrorContains(t, err, "unexpected HID report")
+	require.ErrorContains(t, err, "unexpected HID report 1")
+
+	// A report that is not the start of a response is rejected too.
+	reports = frameAPDU(make([]byte, 10))
+	reports[0][2] = 0x02
+	f.queued = reports
+	_, err = d.Exchange(getVersion)
+	require.ErrorContains(t, err, "unexpected HID report 0")
 }

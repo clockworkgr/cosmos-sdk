@@ -147,6 +147,8 @@ func TestOpenCosmosApp(t *testing.T) {
 		{name: "current version", dev: newFakeCosmosDevice()},
 		{name: "oldest supported", dev: &fakeCosmosDevice{version: [3]byte{2, 1, 0}, key: secp256k1.GenPrivKey()}},
 		{name: "too old", dev: &fakeCosmosDevice{version: [3]byte{2, 0, 9}, key: secp256k1.GenPrivKey()}, wantErr: "too old"},
+		{name: "newest 2.x", dev: &fakeCosmosDevice{version: [3]byte{2, 255, 255}, key: secp256k1.GenPrivKey()}},
+		{name: "next major version", dev: &fakeCosmosDevice{version: [3]byte{3, 0, 0}, key: secp256k1.GenPrivKey()}, wantErr: "not supported"},
 		{name: "another app or the dashboard", dev: errorDevice{sw: 0x6E00}, notApp: true},
 		{name: "locked", dev: errorDevice{sw: swDeviceLocked}, wantErr: "unlock"},
 		{name: "transfer failure", dev: failingDevice{}, wantErr: "transfer failed"},

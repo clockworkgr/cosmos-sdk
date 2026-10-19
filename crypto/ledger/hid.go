@@ -110,17 +110,17 @@ func (d *hidDevice) read() ([]byte, error) {
 			return nil, err
 		}
 		report = report[:n]
+		if isZeroReport(report) {
+			// Some devices, such as the Nano X on macOS, send empty or all-zero
+			// reports, at any point of a response: skip them, as ledger-go does.
+			continue
+		}
 		header := 5
 		if seq == 0 {
 			header = 7
 		}
 		if len(report) < header || binary.BigEndian.Uint16(report) != hidChannel ||
 			report[2] != hidTag || binary.BigEndian.Uint16(report[3:]) != seq {
-			if seq == 0 {
-				// Not the start of a response, such as an empty report some
-				// devices send on macOS: wait for the next one.
-				continue
-			}
 			return nil, fmt.Errorf("unexpected HID report %d of a response", seq)
 		}
 		if seq == 0 {
@@ -132,6 +132,16 @@ func (d *hidDevice) read() ([]byte, error) {
 			return resp[:size], nil
 		}
 	}
+}
+
+// isZeroReport reports whether report is empty or holds only zeros.
+func isZeroReport(report []byte) bool {
+	for _, b := range report {
+		if b != 0 {
+			return false
+		}
+	}
+	return true
 }
 
 func (d *hidDevice) Close() error {

@@ -1,6 +1,3 @@
-//go:build !ledger || !test_ledger_mock
-// +build !ledger !test_ledger_mock
-
 package ledger
 
 import (
@@ -31,8 +28,9 @@ func TestOpenApp(t *testing.T) {
 // does for --ledger keys, against the Cosmos app client.
 func TestPrivKeyOnCosmosApp(t *testing.T) {
 	d := newFakeCosmosDevice()
+	discover := options.discoverLedger
 	SetDiscoverLedger(func() (SECP256K1, error) { return openApp(d) })
-	t.Cleanup(func() { SetDiscoverLedger(discoverCosmosApp) })
+	t.Cleanup(func() { SetDiscoverLedger(discover) })
 
 	params := *hd.NewFundraiserParams(0, sdk.CoinType, 0)
 	priv, addr, err := NewPrivKeySecp256k1(params, "atone")

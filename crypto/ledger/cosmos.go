@@ -41,9 +41,14 @@ const (
 	cosmosPubKeyLen       = 33
 )
 
-// cosmosMinVersion is the oldest Cosmos app version supported, as in
-// ledger-cosmos-go: 2.1.0, written as major<<16 | minor<<8 | patch.
-const cosmosMinVersion = 0x020100
+// Cosmos app versions supported: 2.1.0, the oldest ledger-cosmos-go accepts,
+// and later 2.x releases. A new major version may change the protocol, so it
+// is rejected until checked. cosmosMinVersion is written as
+// major<<16 | minor<<8 | patch.
+const (
+	cosmosMajorVersion = 2
+	cosmosMinVersion   = 0x020100
+)
 
 var errNotCosmosApp = errors.New("the open Ledger app is not the Cosmos app")
 
@@ -70,7 +75,10 @@ func openCosmosApp(dev device) (*cosmosApp, error) {
 		return nil, fmt.Errorf("malformed Cosmos app version of %d bytes", len(resp))
 	}
 	// app mode | major | minor | patch
-	if int(resp[1])<<16|int(resp[2])<<8|int(resp[3]) < cosmosMinVersion {
+	switch major := resp[1]; {
+	case major > cosmosMajorVersion:
+		return nil, fmt.Errorf("the Ledger Cosmos app %d.%d.%d is not supported: a 2.x version, 2.1.0 or later, is required", resp[1], resp[2], resp[3])
+	case int(major)<<16|int(resp[2])<<8|int(resp[3]) < cosmosMinVersion:
 		return nil, fmt.Errorf("the Ledger Cosmos app %d.%d.%d is too old: 2.1.0 or later is required", resp[1], resp[2], resp[3])
 	}
 	return app, nil

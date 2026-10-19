@@ -55,7 +55,12 @@ func connectHID() (*hidDevice, error) {
 		return nil, errors.New("no Ledger device found: connect and unlock it, and close other applications using it, such as Ledger Wallet")
 	}
 	dev := devices[0]
-	if err := dev.Open(false); err != nil {
+	// Open the device exclusively, so that no other application, such as
+	// Ledger Wallet, exchanges APDUs with it while we sign.
+	if err := dev.Open(true); err != nil {
+		if errors.Is(err, usbhid.ErrDeviceLocked) {
+			return nil, errors.New("the Ledger device is in use by another application, such as Ledger Wallet: close it")
+		}
 		return nil, err
 	}
 	return &hidDevice{dev: usbhidReports{dev: dev}}, nil

@@ -168,16 +168,15 @@ test-integration-cov:
 test-all: test-unit test-e2e test-integration test-ledger-mock test-race
 
 TEST_PACKAGES=./...
-TEST_TARGETS := test-unit test-unit-amino test-unit-proto test-ledger-mock test-race test-ledger test-race
+TEST_TARGETS := test-unit test-unit-amino test-unit-proto test-ledger-mock test-race
 
 # Test runs-specific rules. To add a new test target, just add
 # a new rule, customise ARGS or TEST_PACKAGES ad libitum, and
 # append the new rule to the TEST_TARGETS list.
-test-unit: test_tags += cgo ledger test_ledger_mock norace
-test-unit-amino: test_tags += ledger test_ledger_mock test_amino norace
-test-ledger: test_tags += cgo ledger norace
-test-ledger-mock: test_tags += ledger test_ledger_mock norace
-test-race: test_tags += cgo ledger test_ledger_mock
+test-unit: test_tags += cgo test_ledger_mock norace
+test-unit-amino: test_tags += test_ledger_mock test_amino norace
+test-ledger-mock: test_tags += test_ledger_mock norace
+test-race: test_tags += cgo test_ledger_mock
 test-race: ARGS=-race
 test-race: TEST_PACKAGES=$(PACKAGES_NOSIMULATION)
 $(TEST_TARGETS): run-tests
@@ -185,8 +184,8 @@ $(TEST_TARGETS): run-tests
 # check-* compiles and collects tests without running them
 # note: go test -c doesn't support multiple packages yet (https://github.com/golang/go/issues/15513)
 CHECK_TEST_TARGETS := check-test-unit check-test-unit-amino
-check-test-unit: test_tags += cgo ledger test_ledger_mock norace
-check-test-unit-amino: test_tags += ledger test_ledger_mock test_amino norace
+check-test-unit: test_tags += cgo test_ledger_mock norace
+check-test-unit-amino: test_tags += test_ledger_mock test_amino norace
 $(CHECK_TEST_TARGETS): EXTRA_ARGS=-run=none
 $(CHECK_TEST_TARGETS): run-tests
 
