@@ -61,7 +61,6 @@ require (
 	google.golang.org/protobuf v1.36.8
 	gotest.tools/v3 v3.5.1
 	pgregory.net/rapid v1.1.0
-	rafaelmartins.com/p/usbhid v0.0.0-20261005212024-9e34b6c698d7
 	sigs.k8s.io/yaml v1.4.0
 )
 
@@ -70,6 +69,7 @@ require (
 	github.com/99designs/go-keychain v0.0.0-20191008050251-8e49817e8af4 // indirect
 	github.com/DataDog/datadog-go v3.2.0+incompatible // indirect
 	github.com/DataDog/zstd v1.5.5 // indirect
+	github.com/allinbits/usbhid v0.1.0
 	github.com/beorn7/perks v1.0.1 // indirect
 	github.com/bufbuild/protocompile v0.6.0 // indirect
 	github.com/cenkalti/backoff/v4 v4.3.0 // indirect

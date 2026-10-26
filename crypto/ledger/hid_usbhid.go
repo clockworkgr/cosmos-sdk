@@ -5,7 +5,7 @@ package ledger
 import (
 	"errors"
 
-	"rafaelmartins.com/p/usbhid"
+	"github.com/allinbits/usbhid"
 )
 
 // hidSupported reports whether this platform has a HID backend.
@@ -56,7 +56,9 @@ func connectHID() (*hidDevice, error) {
 	}
 	dev := devices[0]
 	// Open the device exclusively, so that no other application, such as
-	// Ledger Wallet, exchanges APDUs with it while we sign.
+	// Ledger Wallet, exchanges APDUs with it while we sign. This is enforced
+	// on macOS and Windows only: on Linux, usbhid takes an advisory flock on
+	// the hidraw node, which applications using hidapi ignore.
 	if err := dev.Open(true); err != nil {
 		if errors.Is(err, usbhid.ErrDeviceLocked) {
 			return nil, errors.New("the Ledger device is in use by another application, such as Ledger Wallet: close it")

@@ -3,6 +3,7 @@
 ## Changelog
 
 * 2026 Oct 19: Initial draft
+* 2026 Oct 26: Depend on the allinbits fork of `usbhid`; exclusive access is enforced on macOS and Windows only
 
 ## Context
 
@@ -12,14 +13,22 @@ Binaries built with `CGO_ENABLED=0`, such as static release builds and most cont
 
 ## Decision
 
-Ledger support is always built in and needs neither CGO nor a build tag. `crypto/ledger` talks to the device through a pure-Go HID backend, [`rafaelmartins.com/p/usbhid`](https://pkg.go.dev/rafaelmartins.com/p/usbhid), and its own client for the Cosmos app, in place of `ledger-cosmos-go`, `ledger-go` and `zondax/hid`.
+Ledger support is always built in and needs neither CGO nor a build tag. `crypto/ledger` talks to the device through a pure-Go HID backend, [`github.com/allinbits/usbhid`](https://github.com/allinbits/usbhid), and its own client for the Cosmos app, in place of `ledger-cosmos-go`, `ledger-go` and `zondax/hid`.
 
 ### Transport
 
 * `crypto/ledger/hid.go` frames APDUs over 64-byte HID reports, as Ledger devices expect them: channel `0x0101`, tag `0x05`, a sequence number and, in the first report, the length of the APDU. It reassembles responses and reports status words other than `0x9000` as errors.
 * One report is written per call: pure-Go HID backends refuse longer writes, and multi-report writes wedge the device on macOS with the hidapi binding.
 * Empty and all-zero reports, which some devices (such as the Nano X on macOS) send at any point of a response, are skipped, as `ledger-go` does. Any other unexpected report is an error.
-* `crypto/ledger/hid_usbhid.go` opens the Ledger's APDU interface (vendor `0x2c97`, usage page `0xffa0`, as opposed to its FIDO interface) on Linux, macOS and Windows. The device is opened exclusively, so that no other application, such as Ledger Wallet, exchanges APDUs with it during a signature. `hid_unsupported.go` returns an error on other platforms.
+* `crypto/ledger/hid_usbhid.go` opens the Ledger's APDU interface (vendor `0x2c97`, usage page `0xffa0`, as opposed to its FIDO interface) on Linux, macOS and Windows. The device is opened exclusively, so that no other application, such as Ledger Wallet, exchanges APDUs with it during a signature. This is enforced on macOS (the device is seized) and Windows (share mode 0) only: on Linux, `usbhid` takes an advisory `flock` on the hidraw node, which applications using hidapi, Ledger Wallet included, ignore. `hid_unsupported.go` returns an error on other platforms.
+
+### HID dependency
+
+`github.com/allinbits/usbhid` is a fork of [`rafaelmartins.com/p/usbhid`](https://rafaelmartins.com/p/usbhid/), taken at upstream commit `9e34b6c698d7` and changed only in its module path. Upstream has a single maintainer, no tagged releases and is served from the maintainer's own domain and git server; its GitHub repository is archived. The fork keeps the SDK's dependency, and that of every chain built on it, under the allinbits organization.
+
+The fork has its own module path, rather than being substituted with a `replace` directive, because Go applies `replace` only in the main module: chains depending on the SDK would otherwise still fetch the upstream module.
+
+Any change to the fork, including bringing in upstream changes, is in the signing path and is reviewed as security-relevant.
 
 ### Cosmos app client
 
@@ -31,7 +40,7 @@ Ledger support is always built in and needs neither CGO nor a build tag. `crypto
 ### Build tags
 
 * The `ledger` build tag is removed: nothing depends on it any more. The `Makefile` no longer checks for `gcc` nor reads `LEDGER_ENABLED`.
-* The mock device is selected with `test_ledger_mock` alone, for tests.
+* The mock device is selected with `test_ledger_mock` alone, for tests. `test_ledger_device` runs the same Ledger tests against a real device initialized with the test mnemonic (`make test-ledger`), to catch transport regressions that fake devices can't, such as before releases.
 
 ## Status
 
@@ -48,6 +57,8 @@ Accepted
 ### Negative
 
 * The SDK maintains its own APDU transport and Cosmos app client instead of relying on the ones Zondax maintains, and must follow changes to the Cosmos app protocol itself, such as a new major version.
+* The transport depends on `usbhid`, a young single-maintainer module without tagged releases upstream, whose macOS backend calls IOKit and CoreFoundation through `purego` (about 1,000 lines, reworked heavily in August 2026 to fix races). The fork removes the dependency on the upstream domain, but we now maintain that code, audits it and reviews every update to it.
+* On Linux, exclusive access to the device is advisory: Ledger Wallet can still open it during a signature.
 * Platforms other than Linux, macOS and Windows have no Ledger support. hidapi supported some of them, but only in CGO builds, which the `Makefile` already disabled on OpenBSD.
 
 ### Neutral
@@ -58,4 +69,5 @@ Accepted
 
 * [#127](https://github.com/atomone-hub/atomone-sdk/pull/127)
 * [`ledger-cosmos-go`](https://github.com/cosmos/ledger-cosmos-go), [`ledger-go`](https://github.com/Zondax/ledger-go)
+* [`usbhid` upstream](https://git.rafaelmartins.com/rafaelmartins/usbhid) and [allinbits fork](https://github.com/allinbits/usbhid)
 * [Ledger Cosmos app APDU specification](https://github.com/cosmos/ledger-cosmos/blob/main/docs/APDUSPEC.md)

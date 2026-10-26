@@ -168,7 +168,7 @@ test-integration-cov:
 test-all: test-unit test-e2e test-integration test-ledger-mock test-race
 
 TEST_PACKAGES=./...
-TEST_TARGETS := test-unit test-unit-amino test-unit-proto test-ledger-mock test-race
+TEST_TARGETS := test-unit test-unit-amino test-unit-proto test-ledger-mock test-ledger test-race
 
 # Test runs-specific rules. To add a new test target, just add
 # a new rule, customise ARGS or TEST_PACKAGES ad libitum, and
@@ -176,6 +176,9 @@ TEST_TARGETS := test-unit test-unit-amino test-unit-proto test-ledger-mock test-
 test-unit: test_tags += cgo test_ledger_mock norace
 test-unit-amino: test_tags += test_ledger_mock test_amino norace
 test-ledger-mock: test_tags += test_ledger_mock norace
+# test-ledger runs the Ledger tests against a real device, which must be
+# initialized with testdata.TestMnemonic, unlocked, with the Cosmos app open.
+test-ledger: test_tags += test_ledger_device norace
 test-race: test_tags += cgo test_ledger_mock
 test-race: ARGS=-race
 test-race: TEST_PACKAGES=$(PACKAGES_NOSIMULATION)
